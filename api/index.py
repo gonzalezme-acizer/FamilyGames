@@ -273,6 +273,22 @@ def stats_for_user(user_id):
     return {"totalGames": len(rows), "gamesWithWinner": sum(bool(row.get("winner_team_id")) for row in rows), "byGame": per_game, "recent": rows[:10]}
 
 
+def database_health():
+    """Verify credentials and the latest schema without leaking Supabase details."""
+    try:
+        db_request("GET", "rooms?select=id,owner_id&limit=1")
+        db_request("GET", "profiles?select=id&limit=1")
+        db_request("GET", "game_sessions?select=id&limit=1")
+        return {"database": True, "schema": "current"}
+    except ApiError as exc:
+        detail = str(exc).lower()
+        if any(name in detail for name in ("owner_id", "profiles", "game_sessions", "schema cache")):
+            return {"database": False, "schema": "migration_required"}
+        if any(term in detail for term in ("api key", "jwt", "permission", "unauthorized", "row-level security")):
+            return {"database": False, "schema": "secret_invalid"}
+        return {"database": False, "schema": "unavailable"}
+
+
 class handler(BaseHTTPRequestHandler):
     def _json(self, payload, status=200):
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -301,7 +317,7 @@ class handler(BaseHTTPRequestHandler):
             parsed = urllib.parse.urlparse(self.path)
             query = urllib.parse.parse_qs(parsed.query)
             if parsed.path == "/api/health":
-                return self._json({"ok": True, "project": "familia-en-juego-cloud", "database": bool(SUPABASE_SECRET_KEY)})
+                return self._json({"ok": True, "project": "familia-en-juego-cloud", **database_health()})
             if parsed.path == "/api/auth/me":
                 user = require_user(self.headers)
                 profiles = db_request("GET", f"profiles?id=eq.{urllib.parse.quote(user['id'])}&select=display_name,preferred_locale")
