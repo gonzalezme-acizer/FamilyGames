@@ -10,9 +10,8 @@
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/index.py" },
     { "source": "/events", "destination": "/api/index.py" },
-    { "source": "/tv", "destination": "/public/index.html" },
-    { "source": "/", "destination": "/public/index.html" },
-    { "source": "/:asset*", "destination": "/public/:asset*" }
+    { "source": "/tv", "destination": "/index.html" },
+    { "source": "/", "destination": "/index.html" }
   ],
   "headers": [
     {
