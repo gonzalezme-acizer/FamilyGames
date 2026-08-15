@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.vercel/
+.env
+.env.local
+.DS_Store
+Familia en Juego.app/
+game-state.json
+.DS_Store
+.module-cache/

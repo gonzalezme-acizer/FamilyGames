@@ -1,0 +1,72 @@
+{
+  "Cosas": [
+    "Paraguas", "Reloj despertador", "Máquina de coser", "Aspiradora", "Teléfono celular",
+    "Cámara fotográfica", "Cepillo dental", "Guitarra eléctrica", "Silla mecedora", "Lámpara mágica",
+    "Valija pesada", "Globo aerostático", "Control remoto", "Martillo", "Ventilador",
+    "Microscopio", "Brújula", "Extintor", "Sacacorchos", "Patineta",
+    "Binoculares", "Caleidoscopio", "Máquina registradora", "Detector metálico", "Trompeta"
+  ],
+  "Sentimientos": [
+    "Alegría", "Tristeza", "Enojo", "Miedo", "Sorpresa",
+    "Vergüenza", "Orgullo", "Aburrimiento", "Nervios", "Envidia",
+    "Confusión", "Desconfianza", "Nostalgia", "Culpa", "Alivio",
+    "Impaciencia", "Decepción", "Gratitud", "Admiración", "Celos",
+    "Valentía", "Soledad", "Entusiasmo", "Frustración", "Amor"
+  ],
+  "Acciones": [
+    "Dormir", "Bostezar", "Estornudar", "Nadar", "Bailar tango",
+    "Saltar la soga", "Cepillarse", "Cocinar", "Pescar", "Esquiar",
+    "Hacer malabares", "Tocar guitarra", "Inflar globos", "Sacar fotos", "Remar",
+    "Cavar", "Planchar ropa", "Pasear perro", "Cambiar pañal", "Escalar montaña",
+    "Atajar penal", "Dirigir orquesta", "Armar rompecabezas", "Buscar señal", "Caminar sonámbulo"
+  ],
+  "Películas": [
+    "Titanic", "Frozen", "Shrek", "Rocky", "Tiburón",
+    "King Kong", "Toy Story", "Jurassic Park", "Mi pobre angelito", "Volver al futuro",
+    "El rey león", "Buscando a Nemo", "La máscara", "Karate Kid", "Los cazafantasmas",
+    "Piratas del Caribe", "Harry Potter", "Intensamente", "Avatar", "Gladiador",
+    "Matrix", "Coco", "Ratatouille", "Terminator", "El padrino"
+  ],
+  "Superhéroes": [
+    "Superman", "Batman", "Spider-Man", "Mujer Maravilla", "Hulk",
+    "Thor", "Iron Man", "Capitán América", "Flash", "Aquaman",
+    "Linterna Verde", "Black Panther", "Doctor Strange", "Ant-Man", "Capitana Marvel",
+    "Wolverine", "Deadpool", "Daredevil", "Supergirl", "Batgirl",
+    "Robin", "Tormenta", "Vision", "Bruja Escarlata", "Flecha Verde"
+  ],
+  "Libros": [
+    "Don Quijote", "El Principito", "Libro Harry Potter", "La Odisea", "Moby Dick",
+    "Drácula", "Frankenstein", "Matilda", "Pinocho", "Heidi",
+    "Mujercitas", "Robinson Crusoe", "Peter Pan", "La metamorfosis", "El Hobbit",
+    "It", "Carrie", "Rayuela", "Martín Fierro", "La Ilíada",
+    "Orgullo y prejuicio", "Crimen y castigo", "El resplandor", "Los miserables", "El Alquimista"
+  ],
+  "Animales": [
+    "Elefante", "Jirafa", "Pingüino", "Canguro", "Mono",
+    "Perro", "Gato", "Gallina", "Serpiente", "Rana",
+    "Cocodrilo", "Flamenco", "Pulpo", "Cangrejo", "Delfín",
+    "Murciélago", "Camaleón", "Ornitorrinco", "Rinoceronte", "Hipopótamo",
+    "Pavo real", "Oso hormiguero", "Caballito de mar", "Lobo marino", "Mantis religiosa"
+  ],
+  "Personajes históricos": [
+    "Napoleón Bonaparte", "Cleopatra", "Julio César", "Cristóbal Colón", "Albert Einstein",
+    "Marie Curie", "Leonardo da Vinci", "Mahatma Gandhi", "Martin Luther King", "Nelson Mandela",
+    "Abraham Lincoln", "Simón Bolívar", "José San Martín", "Manuel Belgrano", "Eva Perón",
+    "Charles Darwin", "Isaac Newton", "Galileo Galilei", "Wolfgang Mozart", "Ludwig Beethoven",
+    "Frida Kahlo", "Pablo Picasso", "Vincent van Gogh", "Amelia Earhart", "Marco Polo"
+  ],
+  "Canciones": [
+    "Despacito", "La Bamba", "Imagine", "Yesterday", "Macarena",
+    "Color Esperanza", "La Bicicleta", "Vivir mi vida", "Persiana americana", "De música ligera",
+    "Muchachos", "Libre", "Resistiré", "Corazón partío", "Hakuna Matata",
+    "Baby Shark", "Happy", "Thriller", "Bad Romance", "Poker Face",
+    "Billie Jean", "Gangnam Style", "Waka Waka", "Mil horas", "Lamento boliviano"
+  ],
+  "Juegos": [
+    "Fútbol", "Ajedrez", "Escondidas", "Juego de rayuela", "Monopoly",
+    "Tetris", "Minecraft", "Fortnite", "Super Mario", "Mario Kart",
+    "Pac-Man", "Dominó", "Scrabble", "Jenga", "Twister",
+    "Truco", "Generala", "Bingo", "Pictionary", "Ta-te-ti",
+    "Piedra papel tijera", "Sillas musicales", "Gallito ciego", "Simón dice", "Carrera de bolsas"
+  ]
+}
