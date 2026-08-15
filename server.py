@@ -1167,6 +1167,7 @@ def handle_action(action):
         STATE["game"] = {
             "id": action.get("game"), "difficulty": action.get("difficulty", "aleatorio"),
             "duration": duration, "rounds": game_rounds,
+            "sessionId": action.get("sessionId"),
             "startScores": {team["id"]: team.get("score", 0) for team in STATE["teams"]},
         }
         if action.get("game") == "tres_verdades":

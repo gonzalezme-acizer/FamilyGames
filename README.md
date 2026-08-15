@@ -6,7 +6,18 @@
 La estrategia y el estado de la migración están documentados en
 [`CLOUD_MIGRATION.md`](CLOUD_MIGRATION.md).
 
-Una experiencia de juegos familiares para una pantalla principal y celulares conectados en la misma red Wi-Fi.
+Una experiencia de juegos familiares para una pantalla principal, Smart TV y celulares conectados desde Internet.
+
+## Administradores y estadísticas
+
+El anfitrión debe crear una cuenta o iniciar sesión con email y contraseña antes de abrir una sala. Cada sala queda vinculada a su cuenta y, al terminar una partida, se guardan el juego, equipos, cantidad de participantes, resultado y ganador. Los jugadores siguen entrando por QR sin registrarse.
+
+Para habilitar esta función en un proyecto existente, ejecutar en Supabase SQL Editor, en orden:
+
+1. `supabase/002_multilanguage.sql`
+2. `supabase/003_admin_auth_stats.sql`
+
+En Supabase Authentication debe estar habilitado el proveedor Email/Password. En Vercel se requieren `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` y `SUPABASE_SECRET_KEY`; la clave secreta se usa exclusivamente en el backend.
 
 Incluye bancos amplios de tarjetas en español, distribuidos entre los niveles Fácil, Medio y Difícil.
 

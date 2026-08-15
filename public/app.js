@@ -3,6 +3,7 @@ const app = $('#app');
 const params = new URLSearchParams(location.search);
 const isMobile = params.has('join');
 const isTV = params.has('tv')||location.pathname==='/tv';
+const pendingRoom=(params.get('nextRoom')||'').trim().toUpperCase();
 const supportedLocales=['es','pt-BR','en'];
 let currentLocale=params.get('lang')||localStorage.getItem('fej-cloud-locale')||((navigator.language||'es').toLowerCase().startsWith('pt')?'pt-BR':(navigator.language||'es').toLowerCase().startsWith('en')?'en':'es');
 if(!supportedLocales.includes(currentLocale))currentLocale='es';
@@ -12,6 +13,12 @@ let roomCode=(params.get('room')||'').trim().toUpperCase();
 const playerStorageKey=()=>`fej-cloud-player-${roomCode}`;
 const playerTokenKey=()=>`fej-cloud-player-token-${roomCode}`;
 const hostTokenKey=()=>`fej-cloud-host-token-${roomCode}`;
+const adminSessionKey='fej-cloud-admin-session';
+let adminSession=(()=>{try{return JSON.parse(localStorage.getItem(adminSessionKey)||'null')}catch(_error){return null}})();
+let adminStats=null,authMode='login';
+function saveAdminSession(session){adminSession=session?.access_token?session:null;if(adminSession)localStorage.setItem(adminSessionKey,JSON.stringify(adminSession));else localStorage.removeItem(adminSessionKey)}
+async function refreshAdminSession(){if(!adminSession?.refresh_token)return false;const res=await fetch('/api/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refreshToken:adminSession.refresh_token})}),data=await res.json();if(!res.ok||!data.ok){saveAdminSession(null);return false}saveAdminSession(data.session);return true}
+async function authFetch(url,options={},retry=true){options.headers={...(options.headers||{})};if(adminSession?.access_token)options.headers.Authorization=`Bearer ${adminSession.access_token}`;let res=await fetch(url,options);if(res.status===401&&retry&&await refreshAdminSession())return authFetch(url,options,false);return res}
 let state, stats={}, view='home', selectedGame='trivia', difficulty='aleatorio', duration=45, rounds=1, modal=null, beginSent=false, timeUpSent=false, lastWinnerCelebration=null, lastStateJson='', whoAmIResumeBlockUntil=0, lastMysteryIndex=-1;
 let playerId = roomCode?localStorage.getItem(playerStorageKey()):null, joinUrl='';
 
@@ -102,9 +109,9 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){screenAwa
 window.addEventListener('pagehide',()=>screenAwake.release());
 
 const post = async body => {
-  const headers={'Content-Type':'application/json'},hostToken=localStorage.getItem(hostTokenKey()),playerToken=localStorage.getItem(playerTokenKey());
-  if(hostToken)headers['X-Host-Token']=hostToken;if(playerToken)headers['X-Player-Token']=playerToken;
-  const res = await fetch('/api/action',{method:'POST',headers,body:JSON.stringify({room:roomCode,action:body})});
+  const headers={'Content-Type':'application/json'},playerToken=localStorage.getItem(playerTokenKey());
+  if(playerToken)headers['X-Player-Token']=playerToken;
+  const res = await authFetch('/api/action',{method:'POST',headers,body:JSON.stringify({room:roomCode,action:body})});
   const data = await res.json();
   if(!res.ok||!data.ok)throw new Error(data.error||'No se pudo completar la acción');
   state=data.state;lastStateJson=JSON.stringify(state);render();return data;
@@ -173,8 +180,10 @@ function makePlayerId(){
 }
 
 async function init(){
-  if(!roomCode)return isTV?renderTVEntry():renderCloudEntry();
+  if(!roomCode){if(!isTV&&adminSession)await loadAdminStats();return isTV?renderTVEntry():renderCloudEntry()}
+  if(!isMobile&&!isTV&&!adminSession){location.replace(`/?nextRoom=${encodeURIComponent(roomCode)}`);return}
   const data=await fetchCloudState();
+  if(!isMobile&&!isTV&&!data.isHost)throw new Error(t('notRoomOwner'));
   state=data.state;setLocale(state.locale||currentLocale);stats=data.contentStats;joinUrl=data.joinUrl;lastStateJson=JSON.stringify(state);lastMysteryIndex=state.mysteryClueIndex??-1;
   if(!isMobile&&state.game)view='play';
   setInterval(pollCloudState,900);
@@ -182,19 +191,26 @@ async function init(){
 }
 
 async function fetchCloudState(){
-  const headers={},playerToken=localStorage.getItem(playerTokenKey()),hostToken=localStorage.getItem(hostTokenKey());if(playerToken)headers['X-Player-Token']=playerToken;if(hostToken)headers['X-Host-Token']=hostToken;
+  const headers={},playerToken=localStorage.getItem(playerTokenKey());if(playerToken)headers['X-Player-Token']=playerToken;
   const query=new URLSearchParams({room:roomCode});if(playerId)query.set('player',playerId);
-  const res=await fetch(`/api/state?${query}`,{headers}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'No se pudo abrir la sala');return data;
+  const res=await authFetch(`/api/state?${query}`,{headers}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error||'No se pudo abrir la sala');return data;
 }
 async function pollCloudState(){
   try{const data=await fetchCloudState(),json=JSON.stringify(data.state);if(json===lastStateJson)return;lastStateJson=json;if(data.state.mysteryClueIndex!==lastMysteryIndex){lastMysteryIndex=data.state.mysteryClueIndex;timeUpSent=false}state=data.state;setLocale(state.locale||currentLocale);stats=data.contentStats;joinUrl=data.joinUrl;render()}catch(_error){}
 }
 function renderCloudEntry(){
-  app.innerHTML=`<main class="cloud-entry"><section class="cloud-welcome"><div class="cloud-logo">🎲</div><span class="eyebrow">${t('cloud')}</span><h1>${t('welcome')}</h1><p>${t('welcomeText')}</p><form id="create-cloud-room"><label>${t('language')}</label><select class="input cloud-language" name="locale"><option value="es" ${currentLocale==='es'?'selected':''}>🇦🇷 ${t('spanish')}</option><option value="pt-BR" ${currentLocale==='pt-BR'?'selected':''}>🇧🇷 ${t('portuguese')}</option><option value="en" ${currentLocale==='en'?'selected':''}>🇺🇸 ${t('english')}</option></select><button class="btn primary">${t('create')}</button></form><div class="cloud-divider"><span>${t('or')}</span></div><form id="enter-cloud-room"><label>${t('roomCode')}</label><div class="row"><input class="input" name="room" required maxlength="8" autocomplete="off" placeholder="ABCDE"><button class="btn secondary">${t('enter')}</button></div></form></section></main>`;
+  const account=adminSession?.user||null;
+  const statsHtml=adminStats?`<div class="statline"><span>🎮 ${t('gamesPlayed')}</span><b>${adminStats.totalGames}</b></div><div class="statline"><span>🏆 ${t('gamesWithWinner')}</span><b>${adminStats.gamesWithWinner}</b></div>`:'';
+  const hostBlock=adminSession?`<div class="account-summary"><b>👤 ${esc(account?.user_metadata?.display_name||account?.email||t('administrator'))}</b><button class="btn ghost" data-logout>${t('logout')}</button></div>${statsHtml}<form id="create-cloud-room"><label>${t('language')}</label><select class="input cloud-language" name="locale"><option value="es" ${currentLocale==='es'?'selected':''}>🇦🇷 ${t('spanish')}</option><option value="pt-BR" ${currentLocale==='pt-BR'?'selected':''}>🇧🇷 ${t('portuguese')}</option><option value="en" ${currentLocale==='en'?'selected':''}>🇺🇸 ${t('english')}</option></select><button class="btn primary">${t('create')}</button></form>`:`<div class="auth-tabs"><button class="btn ${authMode==='login'?'primary':'ghost'}" data-auth-mode="login">${t('login')}</button><button class="btn ${authMode==='signup'?'primary':'ghost'}" data-auth-mode="signup">${t('signup')}</button></div><form id="admin-auth">${authMode==='signup'?`<label>${t('name')}</label><input class="input" name="name" required maxlength="60" autocomplete="name">`:''}<label>Email</label><input class="input" name="email" type="email" required autocomplete="email"><label>${t('password')}</label><input class="input" name="password" type="password" required minlength="6" autocomplete="${authMode==='signup'?'new-password':'current-password'}"><button class="btn primary">${authMode==='signup'?t('createAccount'):t('login')}</button><p id="auth-error" class="join-error" role="alert"></p></form>`;
+  app.innerHTML=`<main class="cloud-entry"><section class="cloud-welcome"><div class="cloud-logo">🎲</div><span class="eyebrow">${t('cloud')}</span><h1>${t('welcome')}</h1><p>${t('adminRequired')}</p>${hostBlock}<div class="cloud-divider"><span>${t('playersWithoutAccount')}</span></div><form id="enter-cloud-room"><label>${t('roomCode')}</label><div class="row"><input class="input" name="room" required maxlength="8" autocomplete="off" placeholder="ABCDE"><button class="btn secondary">${t('enter')}</button></div></form></section></main>`;
   $('.cloud-language').onchange=event=>{setLocale(event.target.value);renderCloudEntry()};
-  $('#create-cloud-room').onsubmit=async event=>{event.preventDefault();const form=event.currentTarget,button=form.querySelector('button'),locale=new FormData(form).get('locale');button.disabled=true;button.textContent=t('creating');try{const res=await fetch('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locale})}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error);roomCode=data.room;setLocale(locale);localStorage.setItem(hostTokenKey(),data.hostToken);location.href=`/?room=${encodeURIComponent(roomCode)}`}catch(error){button.disabled=false;button.textContent=t('create');toast(error.message||t('invalidRoom'))}};
+  document.querySelectorAll('[data-auth-mode]').forEach(button=>button.onclick=()=>{authMode=button.dataset.authMode;renderCloudEntry()});
+  $('[data-logout]')?.addEventListener('click',()=>{saveAdminSession(null);adminStats=null;renderCloudEntry()});
+  $('#admin-auth')?.addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,button=form.querySelector('button'),body=Object.fromEntries(new FormData(form));body.locale=currentLocale;button.disabled=true;try{const res=await fetch(`/api/auth/${authMode}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error);if(data.confirmationRequired){form.innerHTML=`<div class="waiting">✉️</div><h3>${t('checkEmail')}</h3>`;return}saveAdminSession(data.session);if(pendingRoom){location.href=`/?room=${encodeURIComponent(pendingRoom)}`;return}await loadAdminStats();renderCloudEntry()}catch(error){button.disabled=false;const target=$('#auth-error');if(target)target.textContent=error.message}});
+  $('#create-cloud-room')?.addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,button=form.querySelector('button'),locale=new FormData(form).get('locale');button.disabled=true;button.textContent=t('creating');try{const res=await authFetch('/api/rooms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locale})}),data=await res.json();if(!res.ok||!data.ok)throw new Error(data.error);roomCode=data.room;setLocale(locale);location.href=`/?room=${encodeURIComponent(roomCode)}`}catch(error){button.disabled=false;button.textContent=t('create');toast(error.message||t('invalidRoom'))}});
   $('#enter-cloud-room').onsubmit=event=>{event.preventDefault();const code=String(new FormData(event.currentTarget).get('room')||'').trim().toUpperCase();location.href=`/?join=1&room=${encodeURIComponent(code)}`};
 }
+async function loadAdminStats(){if(!adminSession)return;try{const res=await authFetch('/api/stats'),data=await res.json();if(res.ok)adminStats=data.stats}catch(_error){}}
 function renderTVEntry(){app.innerHTML=`<main class="cloud-entry tv-entry"><section class="cloud-welcome"><div class="cloud-logo">📺</div><span class="eyebrow">FAMILIA EN JUEGO · TV</span><h1>${t('tvTitle')}</h1><p>${t('tvText')}</p><form id="enter-tv-room"><label>${t('roomCode')}</label><input class="input" name="room" required maxlength="8" autocomplete="off" autofocus placeholder="ABCDE"><button class="btn primary">${t('connectTV')}</button></form></section></main>`;$('#enter-tv-room').onsubmit=event=>{event.preventDefault();const code=String(new FormData(event.currentTarget).get('room')||'').trim().toUpperCase();location.href=`/tv?room=${encodeURIComponent(code)}`}}
 
 function render(){
@@ -215,7 +231,7 @@ function renderTV(){const body=state.game?playView():`<section class="tv-waiting
 function topbar(){return `<header class="topbar">
   <div class="brand"><div class="logo">🎲</div><div><h1>Familia en Juego</h1><small>Donde todos ganan recuerdos</small></div></div>
   <nav class="nav"><button data-view="home" class="${view==='home'?'active':''}">${t('home')}</button><button data-view="teams" class="${view==='teams'?'active':''}">${t('teams')}</button><button data-view="settings" class="${view==='settings'?'active':''}">${t('content')}</button></nav>
-  <div class="row"><button class="music-btn tv-cast-btn" data-tv>📺 ${t('projectTV')}</button><button class="music-btn ${music.enabled?'on':''}" data-music>${music.enabled?'♫ Música':'♪ Sin música'}</button><button class="music-btn ${autoNarration.enabled?'on':''}" data-auto-narration>${autoNarration.enabled?'🔊 Lectura auto':'🔇 Lectura apagada'}</button><div class="room-chip">${t('room').toUpperCase()} <b>${state.room}</b> · ${state.locale||'es'}</div></div>
+  <div class="row"><button class="music-btn tv-cast-btn" data-tv>📺 ${t('projectTV')}</button><button class="music-btn ${music.enabled?'on':''}" data-music>${music.enabled?'♫ Música':'♪ Sin música'}</button><button class="music-btn ${autoNarration.enabled?'on':''}" data-auto-narration>${autoNarration.enabled?'🔊 Lectura auto':'🔇 Lectura apagada'}</button><div class="room-chip">${t('room').toUpperCase()} <b>${state.room}</b> · ${state.locale||'es'}</div><button class="music-btn" data-logout>${t('logout')}</button></div>
 </header>`}
 
 function statusStrip(){const active=team(state.activeTeam);return `<section class="status-strip"><div class="turn-pill"><span class="pulse"></span><small>TURNO</small><b>${state.game?esc(active?.name||'A definir'):'Esperando partida'}</b></div><div class="mini-scores">${state.teams.map(t=>`<span><i style="background:${t.color}"></i>${esc(t.name)} <b>${t.score}</b></span>`).join('')}</div>${state.game?`<div class="current-game">${games[state.game.id].icon} ${games[state.game.id].name} · ${state.game.duration}s · ${state.game.rounds||1} ronda${(state.game.rounds||1)===1?'':'s'}</div>`:'<div class="current-game">🎉 ¡Todo listo!</div>'}</section>`}
@@ -336,6 +352,7 @@ function bind(){
   document.querySelectorAll('[data-difficulty]').forEach(b=>b.onclick=()=>{difficulty=b.dataset.difficulty;render()});
   $('[data-music]')?.addEventListener('click',()=>music.toggle());
   $('[data-auto-narration]')?.addEventListener('click',()=>autoNarration.toggle());
+  $('[data-logout]')?.addEventListener('click',()=>{saveAdminSession(null);location.href='/'});
   $('[data-narrate]')?.addEventListener('click',()=>toggleNarration(selectedGame));
   $('#game-setup')?.addEventListener('submit',e=>{e.preventDefault();const f=new FormData(e.target);difficulty=f.get('difficulty');duration=Number(f.get('duration'));rounds=Number(f.get('rounds')||1);stopNarration();modal=null;view='play';music.start();post({type:'startGame',game:selectedGame,difficulty,duration,rounds})});
   $('[data-scroll]')?.addEventListener('click',()=>$('#games')?.scrollIntoView({behavior:'smooth'}));
