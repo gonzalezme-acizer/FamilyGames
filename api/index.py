@@ -12,6 +12,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import time
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
@@ -28,6 +29,9 @@ game.notify = lambda: None
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SECRET_KEY = os.environ.get("SUPABASE_SECRET_KEY", "")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", "").rstrip("/")
+SUPPORTED_LOCALES = {"es", "pt-BR", "en"}
+BASE_CONTENT = game.CONTENT
+CONTENT_CACHE = {}
 PLAYER_ACTIONS = {
     "answer", "passPrompt", "requestHint", "chooseWhoSaidPhrase",
     "guessWhoSaid", "requestWhoAmIHint", "answerLie", "answerSong",
@@ -66,7 +70,7 @@ def db_request(method, path, payload=None, prefer=None):
 
 def room_by_code(code):
     safe = urllib.parse.quote(str(code or "").strip().upper())
-    rows = db_request("GET", f"rooms?code=eq.{safe}&select=id,code,host_secret_hash,status")
+    rows = db_request("GET", f"rooms?code=eq.{safe}&select=id,code,host_secret_hash,status,locale")
     if not rows:
         raise ApiError("La sala no existe o ya venció.", 404)
     return rows[0]
@@ -96,6 +100,45 @@ def set_engine_state(state):
     return game.STATE
 
 
+def paged_rows(table, query, page_size=1000):
+    rows, offset = [], 0
+    while True:
+        separator = "&" if "?" in query else "?"
+        page = db_request("GET", f"{table}{query}{separator}limit={page_size}&offset={offset}")
+        rows.extend(page)
+        if len(page) < page_size:
+            return rows
+        offset += page_size
+
+
+def content_for_locale(locale):
+    locale = locale if locale in SUPPORTED_LOCALES else "es"
+    cached = CONTENT_CACHE.get(locale)
+    if cached and time.time() - cached[0] < 300:
+        return cached[1]
+    cards = paged_rows("content_cards", "?active=eq.true&select=id,game,difficulty,category,payload")
+    translations = paged_rows(
+        "content_card_translations",
+        f"?locale=eq.{urllib.parse.quote(locale)}&select=card_id,category,payload",
+    )
+    if locale != "es" and not translations:
+        translations = paged_rows(
+            "content_card_translations", "?locale=eq.es&select=card_id,category,payload"
+        )
+    translated = {item["card_id"]: item for item in translations}
+    result = {}
+    for card in cards:
+        translation = translated.get(card["id"])
+        payload = dict((translation or {}).get("payload") or card.get("payload") or {})
+        payload.setdefault("difficulty", card.get("difficulty"))
+        payload.setdefault("category", (translation or {}).get("category") or card.get("category"))
+        result.setdefault(card["game"], []).append(payload)
+    if not result:
+        result = BASE_CONTENT
+    CONTENT_CACHE[locale] = (time.time(), result)
+    return result
+
+
 def public_payload(state, player_id=None):
     set_engine_state(state)
     return game.public_state(player_id)
@@ -105,6 +148,7 @@ def mutate_room(room, action, attempts=4):
     for _ in range(attempts):
         current = state_row(room["id"])
         set_engine_state(current["state"])
+        game.CONTENT = content_for_locale(room.get("locale", "es"))
         game.handle_action(action)
         next_state = game.STATE
         next_version = int(current["version"]) + 1
@@ -119,19 +163,21 @@ def mutate_room(room, action, attempts=4):
     raise ApiError("La sala recibió acciones simultáneas. Intentá nuevamente.", 409)
 
 
-def create_room():
+def create_room(locale="es"):
+    locale = locale if locale in SUPPORTED_LOCALES else "es"
     host_token = secrets.token_urlsafe(32)
     for _ in range(12):
         code = "".join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(5))
         try:
             rows = db_request(
                 "POST", "rooms?select=id,code",
-                {"code": code, "host_secret_hash": token_hash(host_token)},
+                {"code": code, "host_secret_hash": token_hash(host_token), "locale": locale},
                 "return=representation",
             )
             room = rows[0]
             state = game.fresh_state()
             state["room"] = code
+            state["locale"] = locale
             db_request("POST", "room_states", {"room_id": room["id"], "version": 1, "state": state})
             return room, state, host_token
         except ApiError as exc:
@@ -177,11 +223,14 @@ class handler(BaseHTTPRequestHandler):
             authorized_player = player_id if verify_player(room["id"], player_id, player_token) else None
             host_ok = verify_host(room, self.headers.get("x-host-token"))
             state = state_row(room["id"])["state"]
+            locale = room.get("locale", state.get("locale", "es"))
+            state["locale"] = locale
+            localized_content = content_for_locale(locale)
             base = self._base_url()
             return self._json({
                 "ok": True,
                 "state": public_payload(state, authorized_player if authorized_player else None if host_ok else "__spectator__"),
-                "contentStats": {key: len(value) for key, value in game.CONTENT.items()},
+                "contentStats": {key: len(value) for key, value in localized_content.items()},
                 "joinUrl": f"{base}/?join=1&room={room['code']}",
             })
         except ApiError as exc:
@@ -191,7 +240,8 @@ class handler(BaseHTTPRequestHandler):
         try:
             parsed = urllib.parse.urlparse(self.path)
             if parsed.path == "/api/rooms":
-                room, state, host_token = create_room()
+                body = self._body()
+                room, state, host_token = create_room(body.get("locale", "es"))
                 return self._json({"ok": True, "room": room["code"], "hostToken": host_token, "state": public_payload(state)}, 201)
             if parsed.path != "/api/action":
                 raise ApiError("Ruta inexistente.", 404)

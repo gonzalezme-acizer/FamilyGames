@@ -7,6 +7,7 @@ create table if not exists public.rooms (
   id uuid primary key default gen_random_uuid(),
   code text not null unique check (code ~ '^[A-Z0-9]{4,8}$'),
   host_secret_hash text not null,
+  locale text not null default 'es' check (locale in ('es', 'pt-BR', 'en')),
   status text not null default 'lobby',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -39,6 +40,8 @@ create table if not exists public.content_cards (
   game text not null,
   difficulty text not null check (difficulty in ('facil', 'medio', 'dificil')),
   category text,
+  content_key text not null unique,
+  source_locale text not null default 'es' check (source_locale in ('es', 'pt-BR', 'en')),
   payload jsonb not null,
   active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -48,10 +51,21 @@ create table if not exists public.content_cards (
 create index if not exists content_cards_lookup_idx
   on public.content_cards(game, difficulty, active);
 
+create table if not exists public.content_card_translations (
+  card_id uuid not null references public.content_cards(id) on delete cascade,
+  locale text not null check (locale in ('es', 'pt-BR', 'en')),
+  category text,
+  payload jsonb not null,
+  reviewed boolean not null default false,
+  updated_at timestamptz not null default now(),
+  primary key (card_id, locale)
+);
+
 alter table public.rooms enable row level security;
 alter table public.room_states enable row level security;
 alter table public.players enable row level security;
 alter table public.content_cards enable row level security;
+alter table public.content_card_translations enable row level security;
 
 -- No se crean políticas públicas: el acceso inicial pasa exclusivamente por la
 -- API de Vercel, que validará el anfitrión o el token individual del jugador.
