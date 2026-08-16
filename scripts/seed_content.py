@@ -62,6 +62,17 @@ def chunks(items, size=100):
         yield items[index:index + size]
 
 
+def all_rows(path, page_size=1000):
+    rows, offset = [], 0
+    while True:
+        separator = "&" if "?" in path else "?"
+        batch = request("GET", f"{path}{separator}limit={page_size}&offset={offset}")
+        rows.extend(batch)
+        if len(batch) < page_size:
+            return rows
+        offset += page_size
+
+
 def main():
     cards = []
     for game_id, entries in game.CONTENT.items():
@@ -83,6 +94,7 @@ def main():
     if not URL or not SECRET.startswith("sb_secret_"):
         raise SystemExit("Configurá SUPABASE_URL y una SUPABASE_SECRET_KEY nueva en .env.local")
     imported = 0
+    wanted_keys = {item["content_key"] for item in cards}
     for batch in chunks(cards):
         rows = request(
             "POST", "content_cards?on_conflict=content_key&select=id,content_key",
@@ -100,6 +112,13 @@ def main():
         )
         imported += len(rows)
         print(f"Importadas {imported}/{len(cards)}")
+    if "--sync" in sys.argv:
+        stored = all_rows("content_cards?source_locale=eq.es&select=id,content_key")
+        obsolete = [row["id"] for row in stored if row["content_key"] not in wanted_keys]
+        for batch in chunks(obsolete):
+            encoded = ",".join(batch)
+            request("DELETE", f"content_cards?id=in.({encoded})")
+        print(f"Eliminadas {len(obsolete)} tarjetas obsoletas o variantes repetidas.")
     print("Catálogo español cargado correctamente.")
 
 

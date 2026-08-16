@@ -286,17 +286,32 @@ try:
 except (ImportError, ValueError):
     pass
 try:
-    from catalog_expansion import (
-        expand_drawing, expand_three_truths, expand_trivia, expand_who_said,
-        new_mimica_cards,
-    )
-    CONTENT["trivia"].extend(expand_trivia(CONTENT["trivia"]))
+    from catalog_expansion import new_mimica_cards
     CONTENT["mimica"].extend(new_mimica_cards(CONTENT["mimica"]))
-    CONTENT["dibujo"].extend(expand_drawing(CONTENT["dibujo"]))
-    CONTENT["quien_dijo"].extend(expand_who_said(CONTENT["quien_dijo"]))
-    CONTENT["tres_verdades"].extend(expand_three_truths(CONTENT["tres_verdades"]))
 except (ImportError, ValueError, KeyError):
     pass
+WIKIDATA_TRIVIA_FILE = ROOT / "wikidata-trivia.json"
+if WIKIDATA_TRIVIA_FILE.exists():
+    CONTENT["trivia"].extend(load_json(WIKIDATA_TRIVIA_FILE, []))
+try:
+    from expansion_pack import build_expansion
+    for _game, _cards in build_expansion().items():
+        _existing = {(item.get("question") or item.get("prompt") or item.get("title") or "").casefold() for item in CONTENT.setdefault(_game, [])}
+        CONTENT[_game].extend(item for item in _cards if (item.get("question") or item.get("prompt") or item.get("title") or "").casefold() not in _existing)
+except (ImportError, ValueError, KeyError):
+    pass
+
+# A final canonical pass prevents punctuation-only duplicates from reaching the DB.
+for _game, _cards in list(CONTENT.items()):
+    _seen, _unique = set(), []
+    for _card in _cards:
+        _primary = _card.get("question") or _card.get("prompt") or _card.get("title") or ""
+        _fingerprint = " ".join(normalized_words(_primary))
+        if not _fingerprint or _fingerprint in _seen:
+            continue
+        _seen.add(_fingerprint)
+        _unique.append(_card)
+    CONTENT[_game] = _unique
 for team in STATE.get("teams", []):
     team.setdefault("stars", {})
     team.setdefault("finished", False)
