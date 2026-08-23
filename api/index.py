@@ -26,10 +26,17 @@ import server as game  # noqa: E402
 game.save_state = lambda: None
 game.notify = lambda: None
 
+def normalize_public_url(value):
+    value = str(value or "").strip().rstrip("/")
+    if value and not value.startswith(("http://", "https://")):
+        value = f"https://{value}"
+    return value
+
+
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SECRET_KEY = os.environ.get("SUPABASE_SECRET_KEY", "")
 SUPABASE_PUBLISHABLE_KEY = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "") or os.environ.get("SUPABASE_ANON_KEY", "")
-PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", "").rstrip("/")
+PUBLIC_APP_URL = normalize_public_url(os.environ.get("PUBLIC_APP_URL", ""))
 SUPPORTED_LOCALES = {"es", "pt-BR", "en"}
 BASE_CONTENT = game.CONTENT
 CONTENT_CACHE = {}

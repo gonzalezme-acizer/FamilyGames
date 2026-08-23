@@ -68,6 +68,10 @@ class CloudEngineTests(unittest.TestCase):
         self.assertEqual(payload["owner_id"], "admin-id")
         self.assertEqual(payload["winner_team_name"], "Equipo Sol")
 
+    def test_public_app_url_always_has_a_web_scheme(self):
+        self.assertEqual(cloud.normalize_public_url("family.test/"), "https://family.test")
+        self.assertEqual(cloud.normalize_public_url("http://localhost:8765/"), "http://localhost:8765")
+
 
 if __name__ == "__main__":
     unittest.main()
